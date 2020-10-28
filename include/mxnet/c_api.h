@@ -1308,6 +1308,7 @@ MXNET_DLL int MXCreateCachedOp(SymbolHandle handle,
                                const char** keys,
                                const char** vals,
                                CachedOpHandle *out,
+                               bool first_forward DEFAULT(false),
                                bool thread_safe DEFAULT(false));
 
 /*!
@@ -3113,27 +3114,6 @@ MXNET_DLL int MXEnginePushSyncND(EngineSyncFunc sync_func, void* func_param,
                                  NDArrayHandle* mutable_nds_handle, int num_mutable_nds,
                                  EngineFnPropertyHandle prop_handle DEFAULT(NULL),
                                  int priority DEFAULT(0), const char* opr_name DEFAULT(NULL));
-
-/*!
- * \brief This function checks if any dynamic shape op presents in the symbol.
- * \brief If yes, partition all static ops for execution optimization.
- * \param sym_handle handler of the input symbol.
- * \param num_flags number of flags.
- * \param keys Key of flags.
- * \param vals Value of flags.
- * \param num_params number of param nodes.
- * \param param_indices array of param node indices.
- * \param has_dynamic_shape Flag to indicate if the symbol contains dynamic shape op.
- * \param ret_sym_handle handler of the result symbol.
- */
-MXNET_DLL int MXOptimizeForDynamicShapeOp(SymbolHandle sym_handle,
-                                          SymbolHandle* ret_sym_handle,
-                                          const mx_uint num_flags,
-                                          const char** keys,
-                                          const char** vals,
-                                          const mx_uint num_params,
-                                          const int* param_indices,
-                                          bool* has_dynamic_shape);
 
 #ifdef __cplusplus
 }

@@ -40,10 +40,78 @@ nnvm::Symbol CachedOp::GetOptimizedSymbol() const {
   return ret.Copy();
 }
 
+void CachedOp::PartitionIfDynamic() {
+  bool is_dynamic = false;
+  nnvm::Graph g = Symbol2Graph(sym_);
+  const auto& infershape = nnvm::Op::GetAttr<mxnet::FInferShape>("FInferShape");
+  DFSVisit(g.outputs, [infershape, is_dynamic](const nnvm::ObjectPtr n){
+    if (is_dynamic) return;
+    if (!n->is_variable() && !infershape.count(n->op())) {
+      is_dynamic = true;
+      return;
+    }
+  });
+  // const bool is_dynamic = CheckDynamicShapeExists(...); ??
+  // flags_.emplace_back(std::string("is_dynamic"), std::string(is_dynamic));
+
+  if (is_dynamic) {
+    // store flags in options_map
+    std::unordered_map<std::string, std::string> options_map;
+    for (auto flag : flags_) {
+      options_map.emplace(flag.first, flag.second);
+    }
+    // run BuildSubgraph pass with static_shape property
+    auto backend = mxnet::op::SubgraphBackendRegistry::Get()->GetSubgraphBackend("static_shape");
+    const auto& subgraph_prop_list = backend->GetSubgraphProperties();
+    for (auto property : subgraph_prop_list) {
+      g.attrs["subgraph_property"] = std::make_shared<nnvm::any>(property);
+      property->PrePartition(g, options_map);
+      g = ApplyPass(std::move(g), "BuildSubgraph");
+      g.attrs.erase("subgraph_property");
+    }
+    sym->outputs = g.outputs;
+    // numpy conversion ??
+
+    // update data_indices and param_indices
+    std::vector<nnvm::ObjectPtr> inputs = symbol.ListInputs(nnvm::Symbol::ListInputOption(0));
+    std::string data_indices = "[";
+    std::string param_indices = "[";
+    for (int i = 0; i < inputs.size(); i++) {
+      auto name = inputs[i]->attrs.name;
+      if (name.rfind("data", 0) == 0) { // condition ??
+        if (data_indices.compare("[") == 0) {
+          data_indices += std::to_string(i);
+        } else {
+          data_indices += ", " + std::to_string(i);
+        }
+      } else {
+        if (param_indices.compare("[") == 0) {
+          param_indices += std::to_string(i);
+        } else {
+          param_indices += ", " + std::to_string(i);
+        }
+      }
+    }
+    data_indices = data_indices + "]";
+    param_indices = param_indices + "]";
+    for (auto& flag : flags_) {
+      if (flag->first.compare("data_indices") == 0) {
+        flag->second = data_indices;
+      } else if (flag->first.compare("param_indices") == 0) {
+        flag->second = param_indices;
+      }
+    }
+  }
+}
+
 CachedOp::CachedOp(
     const nnvm::Symbol& sym,
-    const std::vector<std::pair<std::string, std::string> >& flags) : sym_(sym), flags_(flags) {
-  config_.Init(flags);
+    const std::vector<std::pair<std::string, std::string> >& flags,
+    const bool first_forward) : sym_(sym), flags_(flags) {
+  if (first_forward) {
+    PartitionIfDynamic();
+  }
+  config_.Init(flags_);
   this->dynamic_shape_checked_ = false;
 
   if (config_.static_shape) {
@@ -52,7 +120,7 @@ CachedOp::CachedOp(
 
   auto grad_graph = nnvm::Graph();
   std::unordered_map<uint32_t, uint32_t> fwd_input_to_grad_output;
-  CreateFullGraph(sym.Copy(), &fwd_graph_, &grad_graph, &full_graph_,
+  CreateFullGraph(sym_.Copy(), &fwd_graph_, &grad_graph, &full_graph_,
                   &ograd_entries_, &fwd_input_to_grad_output);
 
   {

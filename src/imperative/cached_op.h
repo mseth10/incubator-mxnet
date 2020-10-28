@@ -464,7 +464,8 @@ class CachedOp {
  public:
   CachedOp(
       const nnvm::Symbol& sym,
-      const std::vector<std::pair<std::string, std::string> >& flags);
+      const std::vector<std::pair<std::string, std::string> >& flags,
+      const bool first_forward = false);
   virtual ~CachedOp();
   nnvm::Symbol GetOptimizedSymbol() const;
   uint32_t num_inputs() const {
@@ -627,6 +628,9 @@ class CachedOp {
       const std::vector<NDArray*>& inputs,
       const std::vector<NDArray*>& outputs);
   struct DynamicRuntime;
+  void PartitionIfDynamic();
+  nnvm::Symbol sym_;
+  std::vector<std::pair<std::string, std::string> > flags_;
 
  private:
   OpStatePtr DynamicForward(
@@ -665,8 +669,6 @@ class CachedOp {
   std::unordered_map<Context, std::vector<OpStatePtr> > cached_op_states_;
 
   friend class ::mxnet::io::LazyTransformDataset;
-  nnvm::Symbol sym_;
-  std::vector<std::pair<std::string, std::string> > flags_;
 };
 
 struct CachedOp::DynamicRuntime {

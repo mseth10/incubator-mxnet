@@ -164,6 +164,7 @@ int MXCreateCachedOp(SymbolHandle handle,
                      const char** keys,
                      const char** vals,
                      CachedOpHandle *out,
+                     bool first_forward,
                      bool thread_safe) {
   nnvm::Symbol* sym = static_cast<nnvm::Symbol*>(handle);
   API_BEGIN();
@@ -173,7 +174,7 @@ int MXCreateCachedOp(SymbolHandle handle,
     flags.emplace_back(keys[i], vals[i]);
   }
   if (!thread_safe) {
-    *out = new CachedOpPtr(new CachedOp(*sym, flags));
+    *out = new CachedOpPtr(new CachedOp(*sym, flags, first_forward));
   } else {
     *out = new CachedOpPtr(new CachedOpThreadSafe(*sym, flags));
   }

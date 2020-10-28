@@ -105,7 +105,7 @@ class CachedOp(object):
     """Cached operator handle."""
     __slots__ = ["handle", "is_np_sym", "_monitor_callback"]
 
-    def __init__(self, sym, flags=(), thread_safe=False):
+    def __init__(self, sym, flags=(), first_forward=False, thread_safe=False):
         self.handle = CachedOpHandle()
         self._monitor_callback = None
 
@@ -118,6 +118,7 @@ class CachedOp(object):
             c_str_array([key for key, _ in flags]),
             c_str_array([str(val) for _, val in flags]),
             ctypes.byref(self.handle),
+            ctypes.c_bool(first_forward),
             ctypes.c_bool(thread_safe)))
 
     def __del__(self):
